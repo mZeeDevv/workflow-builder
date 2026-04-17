@@ -1,0 +1,66 @@
+name: Label PR by File Changes
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            **/*.html
+            **/*.css
+            **/*.js
+
+      - name: Label PR based on file changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            
+            // Get list of changed files
+            const changedFiles = execSync(`git diff --name-only origin/${{ github.base_ref }}...HEAD`, {
+              encoding: 'utf-8'
+            }).split('\n').filter(f => f);
+            
+            const labels = new Set();
+            
+            // Check for HTML files
+            if (changedFiles.some(f => f.endsWith('.html'))) {
+              labels.add('HTML');
+            }
+            
+            // Check for CSS files
+            if (changedFiles.some(f => f.endsWith('.css'))) {
+              labels.add('CSS');
+            }
+            
+            // Check for JavaScript files
+            if (changedFiles.some(f => f.endsWith('.js'))) {
+              labels.add('JavaScript');
+            }
+            
+            // Add labels to PR
+            if (labels.size > 0) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: Array.from(labels)
+              });
+              console.log(`Added labels: ${Array.from(labels).join(', ')}`);
+            }
